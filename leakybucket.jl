@@ -4,6 +4,15 @@
 using Markdown
 using InteractiveUtils
 
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    quote
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : missing
+        el
+    end
+end
+
 # ╔═╡ f195b91c-8909-11eb-0693-552057fb2a76
 begin
 	using PlutoUI
@@ -73,8 +82,7 @@ In the first term, $C$ has dimensions of length squared, because $\frac{dv}{dt}$
 
 In the second term, $\lambda$ has dimensions of length squared over time ($cm^2.s^{-1}$), because has $v$ the dimension of length ($cm$).
 
-If we choose units of $cm$ (length) and $seconds$ (time) then the $u_{IN}$ is specified in $cm^3$ per second, $\lambda$ is in $cm^2$ per second ($cm^2.s^{-1}$), and $C$ is in $cm^2$. If you look again at the figure, you'll notice that $C$ is the area of the base of the bucket (it is indeed an area) and it makes sense that the leak current is
-proportional to the cross-sectional area of the leak channel times the pressure at the mouth of the channel. 
+If we choose units of $cm$ (length) and $seconds$ (time) then the $u_{IN}$ is specified in $cm^3$ per second, $\lambda$ is in $cm^2$ per second ($cm^2.s^{-1}$), and $C$ is in $cm^2$. If you look again at the figure, you'll notice that $C$ is the area of the base of the bucket (it is indeed an area) and it makes sense that the leak current is proportional to the cross-sectional area of the leak channel times the pressure at the mouth of the channel. 
 
 So even without being hydrodynamic experts, we know the dimensions of the model parameters, and have a pretty good idea how to determine plausible values of those  parameters. A dimensionally correct model is not necessarily true, but a model that is not dimensionally correct is not even wrong. It cannot be a realistic description of a physical process.
 
@@ -137,24 +145,217 @@ We could do some back of the envelope calculations to estimate a plausible value
 
 # ╔═╡ 5d0c4582-89f3-11eb-1e2b-21d39cb751fd
 begin
-	C = (π*15.0^2)u"cm^2" 		# Cross-sectional area of the bucket
+	r = 15.0u"cm"				# Radius of the bucket cross-section
+	C = (π*r^2) 				# Cross-sectional area of the bucket
 	λ = 5.0u"cm^2/s"			# Coefficient to represent leak flow rate
 	Δt = 0.05u"s"				# Simulation running in 5ms steps
 	T = 600.0u"s"				# Total duration of simulation - 10 minutes
 	t = 0u"s":Δt:T;				# Time iterator
 	v = zeros(length(t))u"cm"	# Vector container for plotting computed values
-	v[1] = 11.0u"cm"			# Intial water height
+	v[1] = 11.0u"cm" 			# Starting water height
 	v_rest = 1.0u"cm"			# Leak height
 	u_in = 0.0u"cm^3/s"			# Input Current
-	v
 end
 
 # ╔═╡ 805ee830-89f5-11eb-0051-ed5933e91fa4
 begin
+	v[1] = 11.0u"cm" # Starting water height
+	
 	for i in 2:length(t)
 		v[i] = v[i-1] + bucket_state_step(v[i-1], Δt, C, λ, v_rest, u_in)
 	end
-	plot(t, v, xlabel="Time t", ylabel="Water Level v", legend=false, title="Leaky Bucket")
+	
+	plot(t, v, 
+		xlabel="Time t", 
+		ylabel="Water Level v", 
+		legend=false, 
+		title="Leaky Bucket")
+end
+
+# ╔═╡ 8f94ee84-8ab7-11eb-3804-dd9df1eb4c3c
+md"""This model predicts that it takes about 10 minutes for the bucket to empty with a leak this big. This is longer than expected, but now we have a model we could do some experiments with a real bucket, then estimate the leak channel conductance by fitting the model to measured water height. We will not do this here - fitting models to data is standard fare in Statistics and Data Science courses. We are concerned with how to construct models of neurons, and generate predictions that could be tested using data.
+
+We can use a slider to play with values of λ. Pluto automatically re-calculates the solution of the ODE and updates the plot. Note that I copied the solver code with a new "λ" variable to avoid conflict with the preceding plot and parameter values. If I was writing a notebook for research I would probably have modified the previous plot rather than making a new copy."""
+
+# ╔═╡ 07280e1a-8ab8-11eb-0d1f-57e38ddd5c92
+@bind λ_ Slider(5.0:5.0:25.0)
+
+# ╔═╡ 6194f84a-8ab8-11eb-2122-a357797c321a
+begin
+	λu = λ_ * u"cm^2/s"
+	v_ = zeros(length(t))u"cm"
+	v_[1] = 11.0u"cm"
+	
+	for i in 2:length(t)
+		v_[i] = v_[i-1] + bucket_state_step(v_[i-1], Δt, C, λu, v_rest, u_in)
+	end
+	
+	plot(t, v_, 
+		xlabel="Time t", 
+		ylabel="Water Level v", 
+		legend=false, 
+		title="Leaky Bucket, λ = $λu")
+end
+
+# ╔═╡ f0aaab00-8abe-11eb-39ba-036e5857caad
+md"## Analytical Solution (The Exponential Function)"
+
+# ╔═╡ 0792bba2-8abf-11eb-0cff-e30c45a6b073
+md"""Numerical simulation, one step at a time from an initial state, is usually the only way to calculate/predict the behaviour of a neural model. But the leaky bucket/integrator model can be solved analytically, i.e. we can write down a "known" function that satisfies the leaky bucket model.
+
+It's worth looking at the "homogenous solution" of the leaky bucket (by definition, the solution when the input $u_{IN}$ is zero) because it turns up all over the place in models of dynamical and stochastic systems.
+
+Noting that $\frac{d(v-v_0)}{dt}=\frac{dv}{dt}$, we can see that $\Delta v = (u_{IN} - \lambda(v - v_{REST}))\Delta t/C$ states that the rate of change of $v - v_0$
+is proportional to $v - v_0$.
+
+The exponential function,  exp$(t; τ) = e^{t/τ}$, satisfies this rule (and is the only function that does)."""
+
+# ╔═╡ f3d717c4-8c48-11eb-2485-3b1388b0d458
+begin
+	τstatic = 160u"s"
+	
+	plot(t, exp.(-t./τstatic), 
+		xlabel="Time t", 
+		title="τ = $τstatic", 
+		legend=false)
+end
+
+# ╔═╡ 6eb23754-90da-11eb-2b7f-7713e2b5a148
+md"## Assignment"
+
+# ╔═╡ 50c72a28-90db-11eb-0073-a511ec76b677
+md"Below, I've now plotted exp$(t; τ) = e^{t/τ}$, such that the result is multiplied by $v - v_{REST}$ and is in terms of the leaky bucket model ($cm$) where τ can be modified on the slider below.
+
+Also plotted is the numerical solution of the leaky bucket model with parameters C and λ on the same axes, with $u = 0$ and the same initial state."
+
+# ╔═╡ 9019b380-90e0-11eb-38d2-2dea51c5575c
+md"If we tweak the τ slider below, we'll find that the lines here overlap at τ = $(C/λ)"
+
+# ╔═╡ 59e3fb34-8ac0-11eb-2e77-011ab1303222
+@bind τ Slider(1:1:600)
+
+# ╔═╡ c27bd3a4-90da-11eb-3a80-3d3362475561
+begin
+	τ_ = τ * u"s"
+	plot(t, [exp.(-t./τ_)*(v.-v_rest)[1], v.-v_rest], xlabel="Time t", ylabel="v-v0", title="τ = $τ_", legend=false)
+end
+
+# ╔═╡ 1c3eb76a-90dd-11eb-2748-99bdfb926069
+md"This particular value of τ is a constant proportional our values of $C$ and $λ$, such that:"
+
+# ╔═╡ cdfe3c10-90e6-11eb-0eb7-8fd20c33f8c1
+md"$τ = \frac{C}{λ}$"
+
+# ╔═╡ f416476c-90e6-11eb-2c45-b37b1f91ee70
+md"""This, conviniently, also happens to be in dimensionally correct units, the $cm^2$ of both terms cancel out, leaving $1/s^{-1}$, or just "$s$". 
+
+τ is in seconds: τ is telling us something about how long it takes to do something, proportinal to the size of our bucket and incoming flow.
+
+So if we look back at our current graph of the leaky bucket, and see what is at time τ:"""
+
+# ╔═╡ 2ba11828-90e8-11eb-0499-6181bd2bfe4f
+begin
+	
+	for i in 2:length(t)
+		v[i] = v[i-1] + bucket_state_step(v[i-1], Δt, C, λ, v_rest, u_in)
+	end
+	
+	tau = Int(round(ustrip(C/λ)))
+	point = v[tau*(Int(1/ustrip(Δt)))]-v_rest # Finds the point v(τ)
+	
+	plot(t, v.-v_rest, 
+		xlabel="Time t", 
+		title="Leaky Bucket, τ = $tau (Rounded)", 
+		label=false)
+	
+	scatter!([tau], [point], 
+		ylabel="Water Level v-v0", 
+		label="= $point")
+end
+
+# ╔═╡ 0219fc50-90ec-11eb-22fb-a15ee13de97a
+md"""So at time τ = $tau seconds in, our water level is $point, approximately 37% of our starting height. 
+
+Even with changing the starting height of the water, so long as the dimensions of our bucket remain the same, this proportion remains true (for every value starting above the resting height):"""
+
+# ╔═╡ 1b5ba69e-90ee-11eb-14bf-a31e58475a62
+@bind v0 Slider(2:1:100)
+
+# ╔═╡ 146c86be-90ee-11eb-2951-7fd8929532db
+begin
+	vh = zeros(length(t))u"cm"
+	vh[1] = v0 * u"cm" # Starting height based on slider
+	
+	for i in 2:length(t)
+		vh[i] = vh[i-1] + bucket_state_step(vh[i-1], Δt, C, λ, v_rest, u_in)
+	end
+	
+	vtau = Int(round(ustrip(C/λ)))
+	vpoint = vh[vtau*(Int(1/ustrip(Δt)))]-v_rest # Finds the point v(τ)
+	
+	plot(t, vh.-v_rest, 
+		xlabel="Time t",
+		title="Leaky Bucket, v0 = $(vh[1]-v_rest)", 
+		label=false)
+	
+	scatter!([vtau], [vpoint], 
+		ylabel="Water Level v-v0", 
+		label="= $vpoint")
+end
+
+# ╔═╡ 8347f124-90f1-11eb-0095-f9e20142f27f
+md"This principle applies recurringly, such that if we wait τ seconds for the water to  fall to 37% of a given level, and then wait τ seconds again, the water level will fall to 37% of that new water level."
+
+# ╔═╡ 814da086-91a9-11eb-19d4-b3546e69de17
+md"## Simulation"
+
+# ╔═╡ 2acafe38-91aa-11eb-2ed3-5ddf4f0c33b1
+md"Below is a simulation of the water level in the bucket we have set up already, with 30 second bursts of input at 30 seconds in, and 5 minutes in - a positive and negative (water being sucked out) input respectively. All the other values of this simulation have been made seperate, so that we can experiment with them without affecting the rest of the notebook.
+
+The slider multiplies the amplitude of the synaptic inputs, where the base inputs are at $0.05cm^3/s$."
+
+# ╔═╡ e779d318-91ac-11eb-29df-a7d5d3a6c94b
+@bind amp Slider(-500:1:500)
+
+# ╔═╡ 3d625326-91a9-11eb-31a6-6b723cf26194
+begin
+	vsim = zeros(length(t))u"cm"	# Vector container for plot values
+	simrest = 1.0u"cm"				# Leak height
+	vsim[1] = simrest 				# Starting water level at rest
+	rsim = 15.0u"cm"				# Radius of the bucket cross-section
+	Csim = (π*r^2) 					# Cross-sectional area of the bucket
+	λsim = 5.0u"cm^2/s"				# Coefficient to represent leak flow rate
+	Δtsim = 0.05u"s"				# Simulation running in 5ms steps
+	Tsim = 600.0u"s"				# Total duration of simulation - 10 minutes
+	tsim = 0u"s":Δt:T;				# Time iterator
+	
+	u_inputs = zeros(length(t))u"cm^3/s" 	# Initialize inputs
+	for i in 1:length(t)
+		if i > 600 && i < 1200
+			u_inputs[i] = 0.05u"cm^3/s" 	# Jump at 30s
+		end
+		
+		if i > 6000 && i < 6600
+			u_inputs[i] = -0.05u"cm^3/s"	# Dip at 5m
+		end
+	end
+	
+	for i in 2:length(t)
+		vsim[i] = vsim[i-1] + bucket_state_step(vsim[i-1], Δtsim, Csim, λsim, simrest, 			u_inputs[i]*amp)
+	end
+	
+	plot(t, vsim, 
+		xlabel="Time t",
+		ylabel="Water Height v",
+		title="Leaky Bucket, Synaptic Input Multiplier: $amp", 
+		label=false,
+		ylims=(0, 3))
+	
+	scatter!([30, 60], [vsim[600], vsim[1200]],
+		label="Start/End $(u_inputs[601]*amp) input")
+	
+	scatter!([300, 330], [vsim[6000], vsim[6600]],
+		label="Start/End $(u_inputs[6001]*amp) input")
 end
 
 # ╔═╡ Cell order:
@@ -186,3 +387,26 @@ end
 # ╟─7056b634-89f2-11eb-3df1-e5fd49402a93
 # ╠═5d0c4582-89f3-11eb-1e2b-21d39cb751fd
 # ╠═805ee830-89f5-11eb-0051-ed5933e91fa4
+# ╟─8f94ee84-8ab7-11eb-3804-dd9df1eb4c3c
+# ╟─07280e1a-8ab8-11eb-0d1f-57e38ddd5c92
+# ╠═6194f84a-8ab8-11eb-2122-a357797c321a
+# ╟─f0aaab00-8abe-11eb-39ba-036e5857caad
+# ╟─0792bba2-8abf-11eb-0cff-e30c45a6b073
+# ╠═f3d717c4-8c48-11eb-2485-3b1388b0d458
+# ╟─6eb23754-90da-11eb-2b7f-7713e2b5a148
+# ╟─50c72a28-90db-11eb-0073-a511ec76b677
+# ╟─9019b380-90e0-11eb-38d2-2dea51c5575c
+# ╟─59e3fb34-8ac0-11eb-2e77-011ab1303222
+# ╠═c27bd3a4-90da-11eb-3a80-3d3362475561
+# ╟─1c3eb76a-90dd-11eb-2748-99bdfb926069
+# ╟─cdfe3c10-90e6-11eb-0eb7-8fd20c33f8c1
+# ╟─f416476c-90e6-11eb-2c45-b37b1f91ee70
+# ╠═2ba11828-90e8-11eb-0499-6181bd2bfe4f
+# ╟─0219fc50-90ec-11eb-22fb-a15ee13de97a
+# ╟─1b5ba69e-90ee-11eb-14bf-a31e58475a62
+# ╠═146c86be-90ee-11eb-2951-7fd8929532db
+# ╠═8347f124-90f1-11eb-0095-f9e20142f27f
+# ╟─814da086-91a9-11eb-19d4-b3546e69de17
+# ╟─2acafe38-91aa-11eb-2ed3-5ddf4f0c33b1
+# ╟─e779d318-91ac-11eb-29df-a7d5d3a6c94b
+# ╠═3d625326-91a9-11eb-31a6-6b723cf26194
