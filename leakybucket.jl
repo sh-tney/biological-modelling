@@ -237,7 +237,7 @@ md"If we tweak the τ slider below, we'll find that the lines here overlap at τ
 # ╔═╡ c27bd3a4-90da-11eb-3a80-3d3362475561
 begin
 	τ_ = τ * u"s"
-	plot(t, [exp.(-t./τ_)*(v.-v_rest)[1], v.-v_rest], xlabel="Time t", ylabel="v-v0", title="τ = $τ_", legend=false)
+	plot(t, [exp.(-t./τ_)*(v.-v_rest)[1], v.-v_rest], xlabel="Time t", ylabel="v-v_rest", title="τ = $τ_", legend=false)
 end
 
 # ╔═╡ 1c3eb76a-90dd-11eb-2748-99bdfb926069
@@ -255,7 +255,6 @@ So if we look back at our current graph of the leaky bucket, and see what is at 
 
 # ╔═╡ 2ba11828-90e8-11eb-0499-6181bd2bfe4f
 begin
-	
 	for i in 2:length(t)
 		v[i] = v[i-1] + bucket_state_step(v[i-1], Δt, C, λ, v_rest, u_in)
 	end
@@ -269,7 +268,7 @@ begin
 		label=false)
 	
 	scatter!([tau], [point], 
-		ylabel="Water Level v-v0", 
+		ylabel="Water Level v-v_rest", 
 		label="= $point")
 end
 
@@ -291,20 +290,28 @@ begin
 	end
 	
 	vtau = Int(round(ustrip(C/λ)))
-	vpoint = vh[vtau*(Int(1/ustrip(Δt)))]-v_rest # Finds the point v(τ)
+	vpoint = vh[vtau*(Int(1/ustrip(Δt)))] # Finds the point v(τ)
 	
-	plot(t, vh.-v_rest, 
+	plot(t, vh, 
 		xlabel="Time t",
-		title="Leaky Bucket, v0 = $(vh[1]-v_rest)", 
+		title="Leaky Bucket, v0 = $(vh[1])", 
 		label=false)
 	
 	scatter!([vtau], [vpoint], 
-		ylabel="Water Level v-v0", 
+		ylabel="Water Level v", 
 		label="= $vpoint")
 end
 
-# ╔═╡ 8347f124-90f1-11eb-0095-f9e20142f27f
-md"This principle applies recurringly, such that if we wait τ seconds for the water to  fall to 37% of a given level, and then wait τ seconds again, the water level will fall to 37% of that new water level."
+# ╔═╡ f5435f7c-91b5-11eb-15b6-23e5bb69e59b
+md"We can see that now that no matter the initial water height, if we wait for τ seconds, the water will fall to 37% of that height, and after τ *more* seconds, it'll fall to 37% of *that* height.
+
+We can then substitute this into our exponential equation if we want:
+
+$τ = \frac{λ}{C}$
+
+$v(t) = v_0(e^{-tλ/C})$
+
+The significance of the 37% number - or 0.37, is that it is approximately the value of $1/e$, which works out nicely from our equation."
 
 # ╔═╡ 814da086-91a9-11eb-19d4-b3546e69de17
 md"## Simulation"
@@ -405,7 +412,7 @@ end
 # ╟─0219fc50-90ec-11eb-22fb-a15ee13de97a
 # ╟─1b5ba69e-90ee-11eb-14bf-a31e58475a62
 # ╠═146c86be-90ee-11eb-2951-7fd8929532db
-# ╠═8347f124-90f1-11eb-0095-f9e20142f27f
+# ╟─f5435f7c-91b5-11eb-15b6-23e5bb69e59b
 # ╟─814da086-91a9-11eb-19d4-b3546e69de17
 # ╟─2acafe38-91aa-11eb-2ed3-5ddf4f0c33b1
 # ╟─e779d318-91ac-11eb-29df-a7d5d3a6c94b
