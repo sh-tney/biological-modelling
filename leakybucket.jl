@@ -236,8 +236,13 @@ md"If we tweak the τ slider below, we'll find that the lines here overlap at τ
 
 # ╔═╡ c27bd3a4-90da-11eb-3a80-3d3362475561
 begin
-	τ_ = τ * u"s"
-	plot(t, [exp.(-t./τ_)*(v.-v_rest)[1], v.-v_rest], xlabel="Time t", ylabel="v-v_rest", title="τ = $τ_", legend=false)
+	τ_ = τ * u"s" 		# Add units to slider value
+	
+	plot(t, [exp.(-t./τ_)*(v.-v_rest)[1], v.-v_rest], 
+		xlabel="Time t", 
+		ylabel="v-v_rest", 
+		title="τ = $τ_", 
+		legend=false)
 end
 
 # ╔═╡ 1c3eb76a-90dd-11eb-2748-99bdfb926069
@@ -283,14 +288,14 @@ Even with changing the starting height of the water, so long as the dimensions o
 # ╔═╡ 146c86be-90ee-11eb-2951-7fd8929532db
 begin
 	vh = zeros(length(t))u"cm"
-	vh[1] = v0 * u"cm" # Starting height based on slider
+	vh[1] = v0 * u"cm" 						# Starting height based on slider
 	
 	for i in 2:length(t)
 		vh[i] = vh[i-1] + bucket_state_step(vh[i-1], Δt, C, λ, v_rest, u_in)
 	end
 	
 	vtau = Int(round(ustrip(C/λ)))
-	vpoint = vh[vtau*(Int(1/ustrip(Δt)))] # Finds the point v(τ)
+	vpoint = vh[vtau*(Int(1/ustrip(Δt)))] 	# Finds the point v(τ)
 	
 	plot(t, vh, 
 		xlabel="Time t",
@@ -312,6 +317,17 @@ $τ = \frac{λ}{C}$
 $v(t) = v_0(e^{-tλ/C})$
 
 The significance of the 37% number - or 0.37, is that it is approximately the value of $1/e$, which works out nicely from our equation."
+
+# ╔═╡ 214e4050-91bd-11eb-0270-81567725d9c6
+md"$τ\frac{dv}{dt} + v = 0$
+
+$\frac{dv}{dt} + \frac{v}{τ} = 0$
+
+$\frac{dv}{dt} = -\frac{v}{τ}$
+
+We can see at this point that the rate of change of $v$ is proportinal to $v/τ$, which means this is exponential, which means we can show this as the exponential function:
+
+$e^{-t/τ}$"
 
 # ╔═╡ 814da086-91a9-11eb-19d4-b3546e69de17
 md"## Simulation"
@@ -413,6 +429,7 @@ end
 # ╟─1b5ba69e-90ee-11eb-14bf-a31e58475a62
 # ╠═146c86be-90ee-11eb-2951-7fd8929532db
 # ╟─f5435f7c-91b5-11eb-15b6-23e5bb69e59b
+# ╟─214e4050-91bd-11eb-0270-81567725d9c6
 # ╟─814da086-91a9-11eb-19d4-b3546e69de17
 # ╟─2acafe38-91aa-11eb-2ed3-5ddf4f0c33b1
 # ╟─e779d318-91ac-11eb-29df-a7d5d3a6c94b
