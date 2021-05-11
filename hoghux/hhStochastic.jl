@@ -90,7 +90,7 @@ end
 println("looping stretch") # does the same as above, with 100x stride length
 
 const Δt_stretch = 1.00#u"ms"
-const t_stretch = 0:Δt:T #0u"s":Δt:T
+const t_stretch = 0:Δt_stretch:T #0u"s":Δt:T
 
 n_stretch = Neuron(A*1) # 1 F per capacitance
 N_stretch = length(t_stretch)
@@ -126,8 +126,8 @@ end
 
 print("plotting")
 plot(t_stretch, V_stretch, label="1ms stride, 1 step per stride")
-plot!(t_stretch, V_stretchwide, label="1ms stride, average of 100 steps per stride", color=:yellow)
-plot!(t_stretch, V_stretchstddev, label="1ms stride, 1 step per stride shrunk by √100", color=:pink)
+plot!(t_stretch, V_stretchwide, label="1ms stride, average of 100 steps per stride", color=:green)
+plot!(t_stretch, V_stretchstddev, label="1ms stride, 1 step per stride shrunk by √100", color=:purple)
 p = plot!(t, V, label="0.01ms stride, 1 step per stride", color=:red)
 ylims!(-25, 150)
 display(p)
