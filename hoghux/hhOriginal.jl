@@ -72,8 +72,6 @@ function HH_update(neuron::Neuron, u::Float64, dt::Float64)
 
 end
 
-print("hello")
-
 const Δt = 0.01#u"ms"
 const T = 50.0#u"ms"
 const t = 0:Δt:T #0u"s":Δt:T

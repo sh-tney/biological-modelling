@@ -14,10 +14,10 @@ cellDiam = 50.0
 """
 struct HH_neuron
 
-    # state vector
-    x::Array{Float64,1} # [v,p, i] = [potential, p_open, i_channel]
+    # state vector - changes within the loop
+    x::Array{Float64,1} # [v,p,i] = [potential, p_open, i_channel]
 
-    # parameters
+    # parameters - fixed for the purposes of simulation
     g::Float64    # maximal conductance mS/cm^2
     E::Float64    # equilibrium potential mV
     C::Float64    # capacitance μF/cm^2
@@ -27,7 +27,7 @@ struct HH_neuron
 end
 
 """
-   HH Neuron constructor
+   HH Neuron constructor, values defined from the results of the HH paper
 """
 function HH_neuron(d::Float64)
 
@@ -49,7 +49,7 @@ end
 
 
 """
-    H-H α() and β() functions
+    H-H α() and β() functions, the rates of channels opening & closing, as per HH
 """
 α(v) =  v == 10.0 ?  0.1 : 0.01*(10.0 - v)/(exp((10.0-v)/10)-1.0)
 β(v) = 0.125*exp(-v/80.)
@@ -57,12 +57,14 @@ end
 """
    HH Neuron state update
    nb "neuron" is a reference to an object, its fields will be updated
+   Inject is the current being input to the neuron
+   Δt is a time step
 """
 function hh_update(neuron, Inject, Δt)
 
     # copy the state variables before you start messing with them!
-    v = neuron.x[1]
-    p = neuron.x[2]
+    v = neuron.x[1] # Membrane Potential (Voltage)
+    p = neuron.x[2] # Probability of open state
 
     Inject = Inject*1.0e-3  # convert nA -> μA
 
@@ -75,9 +77,9 @@ function hh_update(neuron, Inject, Δt)
 
     # update state
     # nb input I is specified in nA, convert to mA for dimensional correctness
-    neuron.x[1] = v - Δt*(Ichannel-Inject)/neuron.C
-    neuron.x[2] = p + Δt*(p_infinity - p)/τ
-    neuron.x[3] = Ichannel*1.0e3  # convert μA -> nA
+    neuron.x[1] = v - Δt*(Ichannel-Inject)/neuron.C # Calculate new membrane potential based on net current / capacitance
+    neuron.x[2] = p + Δt*(p_infinity - p)/τ # Figure out new channel open state probability, based on new membrane potential
+    neuron.x[3] = Ichannel*1.0e3  # convert μA -> nA, for plotting
 
 end
 
@@ -96,7 +98,7 @@ function nchannels(s_channel, s_membrane, celldiam)
 end
 
 """
-   pulse waveform same length as t
+   pulse waveform same length as t, defined for demonstration purposes
 """
 function pulse(t, start, len, amplitude)
 
@@ -106,9 +108,13 @@ u = zeros(length(t))
   return u
 end
 
-Δt = .01                # simulation step length in ms nb consistent with τ
+"""
+    Executable code start
+"""
+
+Δt = .01                    # simulation step length in ms nb consistent with τ
 const T = 30.               # duration of simulation
-const t = collect(0.0:Δt:T)  # simulation time array
+const t = collect(0.0:Δt:T) # simulation time array
 
 pulseStart = 10.
 pulseLen = 10.
@@ -117,14 +123,14 @@ I = pulse(t, pulseStart, pulseLen, pulseAmplitude)
 
 hneuron = HH_neuron(cellDiam)   # construct a neuron
 
-# burn in
+# burn in, run HH function for 10 seconds with no input, to set neuron at equilibrium potential
 for i in 1:10000
     hh_update(hneuron, 0.0, Δt)
 end
 
 # create array to store state vector time series
 hx = fill(0.0, length(t), length(hneuron.x))
-hx[1,:] = hneuron.x[:]         # initialize to neuron's state
+hx[1,:] = hneuron.x[:]         # initialize to neuron's state post-burn in
 
 for i in 2:length(t)
 
@@ -170,4 +176,4 @@ ax5.set_xlim(0,T)
 tight_layout()
 
 display(fig)
-close(fig)  # otherwise fig stays in workspace
+#close(fig)  # otherwise fig stays in workspace
